@@ -23,6 +23,14 @@
     "bundesapi"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yeahoffline/germany-handelsregister.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yeahoffline/germany-handelsregister/issues"
+  },
+  "homepage": "https://github.com/yeahoffline/germany-handelsregister#readme",
   "dependencies": {
     "cheerio": "^1.2.0",
     "commander": "^14.0.3",
