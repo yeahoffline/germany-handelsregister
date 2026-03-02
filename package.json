@@ -1,0 +1,33 @@
+{
+  "name": "germany-handelsregister",
+  "version": "0.1.0",
+  "description": "CLI and library for the German Handelsregister (commercial register) portal",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "handelsregister": "src/index.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "search": "node src/index.js search"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "handelsregister",
+    "germany",
+    "commercial-register",
+    "bundesapi"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "commander": "^14.0.3",
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
