@@ -66,6 +66,7 @@ program
   .option('--to <date>', 'End date (dd.MM.yyyy). Default: today')
   .option('--bundesland <code>', 'Federal state: BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all')
   .option('--kategorie <id>', 'Category: 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige, 5=Sonderregister')
+  .option('--enrich', 'Fetch full company data for each announcement (slow, ~65s delay between lookups for rate limit)')
   .option('-f, --force', 'Force a fresh pull and skip the cache')
   .option('--json', 'Return response as JSON')
   .option('-d, --debug', 'Enable debug mode')
@@ -79,6 +80,7 @@ program
         bundesland: options.bundesland ?? '',
         kategorie: options.kategorie ?? '',
         force: options.force,
+        enrich: options.enrich,
       });
       if (announcements != null && announcements.length > 0) {
         if (options.json) {
@@ -88,6 +90,12 @@ program
             console.log(`${a.date} | ${a.category}`);
             console.log(`  ${a.court}`);
             console.log(`  ${a.name} – ${a.location}`);
+            if (a.company) {
+              console.log(`  [company] register: ${a.company.register_num ?? '-'}, status: ${a.company.statusCurrent ?? '-'}, documents: ${a.company.documents ?? '-'}`);
+              if (a.company.history?.length) {
+                console.log(`  [history] ${a.company.history.length} entries`);
+              }
+            }
             console.log();
           }
         }

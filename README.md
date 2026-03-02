@@ -59,6 +59,9 @@ npx handelsregister announcements --from 01.02.2026 --to 15.02.2026
 npx handelsregister announcements --bundesland BE      # Berlin only
 npx handelsregister announcements --kategorie 3        # Einreichung neuer Dokumente
 npx handelsregister announcements --json
+
+# Enrich with full company data (register_num, status, documents, history)
+npx handelsregister announcements --enrich             # slow: ~65s between each company lookup
 ```
 
 **Announcements options:**
@@ -69,6 +72,7 @@ npx handelsregister announcements --json
 | `--to <date>` | End date (dd.MM.yyyy). Default: today |
 | `--bundesland <code>` | BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all |
 | `--kategorie <id>` | 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige |
+| `--enrich` | Fetch full company data for each announcement (slow, respects 60/hr rate limit) |
 | `-f, --force` | Bypass cache |
 | `--json` | Output as JSON |
 
@@ -106,9 +110,11 @@ const announcements = await client.searchAnnouncements({
   bundesland: '',  // all states
   kategorie: '',   // all categories
   force: false,
+  enrich: true,    // add full company data (register_num, status, documents, history)
 });
 
 await client.close();
+// Each announcement has: date, category, court, name, location, company (if enrich: true)
 console.log(announcements);
 ```
 

@@ -8,6 +8,31 @@ import { parseAnnouncements } from './announcements-parser.js';
 
 const SCHLAGWORT_OPTIONEN = { all: '1', min: '2', exact: '3' };
 const ANNOUNCEMENTS_CACHE_DIR = join(tmpdir(), 'handelsregister_announcements_cache');
+const REGISTER_NUM_REGEX = /(HRA|HRB|GnR|VR|PR)\s*\d+/;
+
+/**
+ * Extract register number from court string for matching (e.g. "HRB 220084").
+ */
+function extractRegisterFromCourt(courtStr) {
+  const m = (courtStr || '').match(REGISTER_NUM_REGEX);
+  return m ? m[0] : null;
+}
+
+/**
+ * Find company in search results that matches the announcement (by register number).
+ */
+function matchCompanyToAnnouncement(companies, announcement) {
+  const regNum = extractRegisterFromCourt(announcement.court);
+  if (!regNum) return companies[0] ?? null;
+  const normalized = regNum.replace(/\s+/g, ' ');
+  for (const c of companies) {
+    const cr = (c.register_num || c.court || '').replace(/\s+/g, ' ');
+    if (cr.includes(normalized) || normalized.includes(cr.split(/\s/).slice(0, 2).join(' '))) {
+      return c;
+    }
+  }
+  return companies[0] ?? null;
+}
 
 /**
  * Format Date as dd.MM.yyyy for the announcements form.
@@ -173,6 +198,8 @@ export class HandelsregisterClient {
    * @param {string} [options.bundesland=''] - Federal state code (BW, BY, BE, etc.) or '' for all
    * @param {string} [options.kategorie=''] - Category: 1-5 or '' for all
    * @param {boolean} [options.force=false] - Bypass cache
+   * @param {boolean} [options.enrich=false] - Fetch full company data for each announcement (slow, uses rate limit)
+   * @param {number} [options.enrichDelayMs=65000] - Delay between company lookups in ms (~65s to stay under 60/hr)
    * @returns {Promise<Array<Object>>}
    */
   async searchAnnouncements(options = {}) {
@@ -185,6 +212,8 @@ export class HandelsregisterClient {
     const bundesland = options.bundesland ?? '';
     const kategorie = options.kategorie ?? '';
     const force = options.force ?? false;
+    const enrich = options.enrich ?? false;
+    const enrichDelayMs = options.enrichDelayMs ?? 65000;
 
     if (typeof dateFrom === 'string') dateFrom = new Date(dateFrom.split('.').reverse().join('-'));
     if (typeof dateTo === 'string') dateTo = new Date(dateTo.split('.').reverse().join('-'));
@@ -199,7 +228,11 @@ export class HandelsregisterClient {
         if (existsSync(cachePath)) {
           const html = await readFile(cachePath, 'utf-8');
           if (this.debug) console.error(`return cached announcements for ${dateFromStr} - ${dateToStr}`);
-          return parseAnnouncements(html);
+          const announcements = parseAnnouncements(html);
+          if (enrich && announcements.length > 0) {
+            return this._enrichAnnouncements(announcements, { enrichDelayMs });
+          }
+          return announcements;
         }
       } catch (err) {
         if (this.debug) console.error('Cache read error:', err);
@@ -256,7 +289,46 @@ export class HandelsregisterClient {
       if (this.debug) console.error('Cache write error:', err);
     }
 
-    return parseAnnouncements(html);
+    let announcements = parseAnnouncements(html);
+    if (enrich && announcements.length > 0) {
+      announcements = await this._enrichAnnouncements(announcements, { enrichDelayMs });
+    }
+    return announcements;
+  }
+
+  /**
+   * Enrich announcements with full company data via company search.
+   * @private
+   */
+  async _enrichAnnouncements(announcements, { enrichDelayMs }) {
+    const toEnrich = announcements;
+    const companyCache = new Map();
+    const enriched = [];
+
+    for (let i = 0; i < toEnrich.length; i++) {
+      const a = toEnrich[i];
+      const dedupeKey = `${a.name}|${extractRegisterFromCourt(a.court) || ''}`;
+      let company = companyCache.get(dedupeKey);
+
+      if (company === undefined) {
+        if (this.debug) console.error(`Enriching ${i + 1}/${toEnrich.length}: ${a.name}`);
+        try {
+          const companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'exact', force: false });
+          company = matchCompanyToAnnouncement(companies || [], a);
+        } catch (err) {
+          if (this.debug) console.error(`Enrich failed for ${a.name}:`, err.message);
+          company = null;
+        }
+        companyCache.set(dedupeKey, company);
+        if (i < toEnrich.length - 1) {
+          await new Promise((r) => setTimeout(r, enrichDelayMs));
+        }
+      }
+
+      enriched.push({ ...a, company });
+    }
+
+    return [...enriched, ...announcements.slice(limit)];
   }
 
   /**
