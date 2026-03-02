@@ -10,7 +10,8 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "search": "node src/index.js search"
+    "search": "node src/index.js search",
+    "announcements": "node src/index.js announcements"
   },
   "engines": {
     "node": ">=18"

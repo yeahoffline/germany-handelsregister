@@ -11,20 +11,32 @@ npm install
 npx playwright install chromium
 ```
 
-Or use the CLI via npx:
-
-```bash
-npx germany-handelsregister search -s "deutsche bahn"
-```
-
 ## Usage
 
 ### CLI
 
+Run the CLI via npx (recommended) or npm scripts:
+
 ```bash
+# Via npx – no -- needed when passing flags
+npx handelsregister search -s "deutsche bahn" -o all
+npx handelsregister announcements --json
+
+# Via npm scripts (-- passes following args to the script)
+npm run search -- -s "deutsche bahn" -o all
+npm run announcements
+
+# After global install: npm install -g .
 handelsregister search -s "deutsche bahn" -o all
-handelsregister search -s "Gasag AG" -o exact --json
-handelsregister search -s "Gasag AG" -f   # force fresh request, bypass cache
+handelsregister announcements
+```
+
+**Company search examples:**
+
+```bash
+npx handelsregister search -s "deutsche bahn" -o all
+npx handelsregister search -s "Gasag AG" -o exact --json
+npx handelsregister search -s "Gasag AG" -f   # force fresh, bypass cache
 ```
 
 **Search options:**
@@ -42,11 +54,11 @@ handelsregister search -s "Gasag AG" -f   # force fresh request, bypass cache
 Search register announcements – newly published changes including new company registrations, transformations, deletions, etc. Covers the last 8 weeks per § 10 HGB.
 
 ```bash
-handelsregister announcements                    # last 7 days, all Germany
-handelsregister announcements --from 01.02.2026 --to 15.02.2026
-handelsregister announcements --bundesland BE   # Berlin only
-handelsregister announcements --kategorie 3     # Einreichung neuer Dokumente
-handelsregister announcements --json
+npx handelsregister announcements                      # last 7 days, all Germany
+npx handelsregister announcements --from 01.02.2026 --to 15.02.2026
+npx handelsregister announcements --bundesland BE      # Berlin only
+npx handelsregister announcements --kategorie 3        # Einreichung neuer Dokumente
+npx handelsregister announcements --json
 ```
 
 **Announcements options:**
