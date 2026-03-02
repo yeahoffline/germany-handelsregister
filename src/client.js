@@ -1,13 +1,8 @@
 import { chromium } from 'playwright';
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
 import { parseSearchResults } from './parser.js';
 import { parseAnnouncements } from './announcements-parser.js';
 
 const SCHLAGWORT_OPTIONEN = { all: '1', min: '2', exact: '3' };
-const ANNOUNCEMENTS_CACHE_DIR = join(tmpdir(), 'handelsregister_announcements_cache');
 const REGISTER_NUM_REGEX = /(HRA|HRB|GnR|VR|PR)\s*\d+/;
 
 /**
@@ -44,21 +39,6 @@ function formatDateDE(date) {
   return `${d}.${m}.${y}`;
 }
 const BASE_URL = 'https://www.handelsregister.de';
-const CACHE_DIR = join(tmpdir(), 'handelsregister_cache');
-
-/**
- * Create a filesystem-safe cache key from search options.
- * @param {string} schlagwoerter
- * @param {string} schlagwortOptionen
- * @returns {string}
- */
-function getCacheKey(schlagwoerter, schlagwortOptionen) {
-  const safe = `${schlagwoerter}_${schlagwortOptionen}`
-    .replace(/[/\\?*:|"<>]/g, '_')
-    .replace(/\s+/g, '_')
-    .slice(0, 200);
-  return safe || 'default';
-}
 
 export class HandelsregisterClient {
   /**
@@ -107,28 +87,11 @@ export class HandelsregisterClient {
    * @param {Object} options
    * @param {string} options.schlagwoerter - Search keywords
    * @param {string} [options.schlagwortOptionen='all'] - all | min | exact
-   * @param {boolean} [options.force=false] - Bypass cache and fetch fresh
    * @returns {Promise<Array<Object>>}
    */
   async search(options) {
-    const { schlagwoerter, schlagwortOptionen = 'all', force = false } = options;
+    const { schlagwoerter, schlagwortOptionen = 'all' } = options;
     const soId = SCHLAGWORT_OPTIONEN[schlagwortOptionen] ?? '1';
-    const cacheKey = getCacheKey(schlagwoerter, schlagwortOptionen);
-    const cachePath = join(CACHE_DIR, cacheKey);
-
-    if (!force) {
-      try {
-        if (existsSync(cachePath)) {
-          const html = await readFile(cachePath, 'utf-8');
-          if (this.debug) {
-            console.error(`return cached content for ${schlagwoerter}`);
-          }
-          return parseSearchResults(html);
-        }
-      } catch (err) {
-        if (this.debug) console.error('Cache read error:', err);
-      }
-    }
 
     if (!this.page) await this.openStartpage();
 
@@ -184,14 +147,6 @@ export class HandelsregisterClient {
 
     const html = await this.page.content();
 
-    // Write to cache
-    try {
-      await mkdir(CACHE_DIR, { recursive: true });
-      await writeFile(cachePath, html, 'utf-8');
-    } catch (err) {
-      if (this.debug) console.error('Cache write error:', err);
-    }
-
     return parseSearchResults(html);
   }
 
@@ -202,7 +157,6 @@ export class HandelsregisterClient {
    * @param {Date|string} [options.dateTo] - End date (Date or dd.MM.yyyy string). Default: today
    * @param {string} [options.bundesland=''] - Federal state code (BW, BY, BE, etc.) or '' for all
    * @param {string} [options.kategorie=''] - Category: 1-5 or '' for all
-   * @param {boolean} [options.force=false] - Bypass cache
    * @param {boolean} [options.enrich=false] - Fetch full company data for each announcement (slow, uses rate limit)
    * @param {number} [options.enrichDelayMs=65000] - Delay between company lookups in ms (~65s to stay under 60/hr)
    * @returns {Promise<Array<Object>>}
@@ -216,7 +170,6 @@ export class HandelsregisterClient {
     let dateTo = options.dateTo ?? today;
     const bundesland = options.bundesland ?? '';
     const kategorie = options.kategorie ?? '';
-    const force = options.force ?? false;
     const enrich = options.enrich ?? false;
     const enrichDelayMs = options.enrichDelayMs ?? 65000;
 
@@ -224,25 +177,6 @@ export class HandelsregisterClient {
     if (typeof dateTo === 'string') dateTo = new Date(dateTo.split('.').reverse().join('-'));
     const dateFromStr = formatDateDE(dateFrom);
     const dateToStr = formatDateDE(dateTo);
-
-    const cacheKey = `ann_${dateFromStr}_${dateToStr}_${bundesland}_${kategorie}`.replace(/[/\\?*:|"<>]/g, '_');
-    const cachePath = join(ANNOUNCEMENTS_CACHE_DIR, cacheKey);
-
-    if (!force) {
-      try {
-        if (existsSync(cachePath)) {
-          const html = await readFile(cachePath, 'utf-8');
-          if (this.debug) console.error(`return cached announcements for ${dateFromStr} - ${dateToStr}`);
-          const announcements = parseAnnouncements(html);
-          if (enrich && announcements.length > 0) {
-            return this._enrichAnnouncements(announcements, { enrichDelayMs });
-          }
-          return announcements;
-        }
-      } catch (err) {
-        if (this.debug) console.error('Cache read error:', err);
-      }
-    }
 
     if (!this.page) await this.openStartpage();
 
@@ -287,13 +221,6 @@ export class HandelsregisterClient {
 
     const html = await this.page.content();
 
-    try {
-      await mkdir(ANNOUNCEMENTS_CACHE_DIR, { recursive: true });
-      await writeFile(cachePath, html, 'utf-8');
-    } catch (err) {
-      if (this.debug) console.error('Cache write error:', err);
-    }
-
     let announcements = parseAnnouncements(html);
     if (enrich && announcements.length > 0) {
       announcements = await this._enrichAnnouncements(announcements, { enrichDelayMs });
@@ -311,29 +238,29 @@ export class HandelsregisterClient {
     await this.acceptCookiesIfPresent();
 
     const toEnrich = announcements;
-    const companyCache = new Map();
+    const seenCompanies = new Map();
     const enriched = [];
 
     for (let i = 0; i < toEnrich.length; i++) {
       const a = toEnrich[i];
       const dedupeKey = `${a.name}|${extractRegisterFromCourt(a.court) || ''}`;
-      let company = companyCache.get(dedupeKey);
+      let company = seenCompanies.get(dedupeKey);
 
       if (company === undefined) {
         if (this.debug) console.error(`Enriching ${i + 1}/${toEnrich.length}: ${a.name}`);
         try {
-          let companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'exact', force: false });
+          let companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'exact' });
           company = matchCompanyToAnnouncement(companies || [], a);
           if (!company && a.name) {
             if (this.debug) console.error(`  exact miss, retrying with keyword search`);
-            companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'all', force: false });
+            companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'all' });
             company = matchCompanyToAnnouncement(companies || [], a);
           }
         } catch (err) {
           if (this.debug) console.error(`Enrich failed for ${a.name}:`, err.message);
           company = null;
         }
-        companyCache.set(dedupeKey, company);
+        seenCompanies.set(dedupeKey, company);
         if (i < toEnrich.length - 1) {
           await new Promise((r) => setTimeout(r, enrichDelayMs));
         }

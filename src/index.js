@@ -33,7 +33,6 @@ program
     'Keyword options: all=contain all keywords; min=contain at least one keyword; exact=contain the exact company name',
     'all'
   )
-  .option('-f, --force', 'Force a fresh pull and skip the cache')
   .option('--json', 'Return response as JSON')
   .option('-d, --debug', 'Enable debug mode and activate logging')
   .action(async (options) => {
@@ -43,7 +42,6 @@ program
       const companies = await client.search({
         schlagwoerter: options.schlagwoerter,
         schlagwortOptionen: options.schlagwortOptionen,
-        force: options.force,
       });
       if (companies != null && companies.length > 0) {
         if (options.json) {
@@ -67,7 +65,6 @@ program
   .option('--bundesland <code>', 'Federal state: BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all')
   .option('--kategorie <id>', 'Category: 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige, 5=Sonderregister')
   .option('--enrich', 'Fetch full company data for each announcement (slow, ~65s delay between lookups for rate limit)')
-  .option('-f, --force', 'Force a fresh pull and skip the cache')
   .option('--json', 'Return response as JSON')
   .option('-d, --debug', 'Enable debug mode')
   .action(async (options) => {
@@ -79,7 +76,6 @@ program
         dateTo: options.to,
         bundesland: options.bundesland ?? '',
         kategorie: options.kategorie ?? '',
-        force: options.force,
         enrich: options.enrich,
       });
       if (announcements != null && announcements.length > 0) {

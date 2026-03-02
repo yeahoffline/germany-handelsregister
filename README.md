@@ -36,7 +36,6 @@ handelsregister announcements
 ```bash
 npx handelsregister search -s "deutsche bahn" -o all
 npx handelsregister search -s "Gasag AG" -o exact --json
-npx handelsregister search -s "Gasag AG" -f   # force fresh, bypass cache
 ```
 
 **Search options:**
@@ -45,7 +44,6 @@ npx handelsregister search -s "Gasag AG" -f   # force fresh, bypass cache
 |--------|-------------|
 | `-s, --schlagwoerter <keywords>` | Search keywords (required) |
 | `-o, --schlagwort-optionen <option>` | `all` (contain all keywords), `min` (at least one), `exact` (exact company name). Default: `all` |
-| `-f, --force` | Bypass cache, always fetch fresh from the portal |
 | `--json` | Output results as JSON |
 | `-d, --debug` | Enable debug logging |
 
@@ -73,7 +71,6 @@ npx handelsregister announcements --enrich             # slow: ~65s between each
 | `--bundesland <code>` | BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all |
 | `--kategorie <id>` | 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige |
 | `--enrich` | Fetch full company data for each announcement (slow, respects 60/hr rate limit) |
-| `-f, --force` | Bypass cache |
 | `--json` | Output as JSON |
 
 ### Programmatic Use
@@ -89,7 +86,6 @@ await client.openStartpage();
 const companies = await client.search({
   schlagwoerter: 'deutsche bahn',
   schlagwortOptionen: 'all',
-  force: false,
 });
 
 await client.close();
@@ -109,7 +105,6 @@ const announcements = await client.searchAnnouncements({
   dateTo: '15.02.2026',
   bundesland: '',  // all states
   kategorie: '',   // all categories
-  force: false,
   enrich: true,    // add full company data (register_num, status, documents, history)
 });
 
@@ -117,13 +112,6 @@ await client.close();
 // Each announcement has: date, category, court, name, location, company (if enrich: true)
 console.log(announcements);
 ```
-
-## Cache
-
-- Company search: `os.tmpdir()/handelsregister_cache/`
-- Announcements: `os.tmpdir()/handelsregister_announcements_cache/`
-
-Use `-f` or `force: true` to bypass the cache.
 
 ## Rate Limit
 
