@@ -84,7 +84,7 @@ export class HandelsregisterClient {
       locale: 'de-DE',
     });
     this.page = await this.context.newPage();
-    await this.page.goto(BASE_URL, { waitUntil: 'load', timeout: 60000 });
+    await this.page.goto(BASE_URL, { waitUntil: 'load', timeout: 30000 });
     await this.acceptCookiesIfPresent();
   }
 
@@ -165,10 +165,15 @@ export class HandelsregisterClient {
       console.error('Page title:', await this.page.title());
     }
 
-    // Fill search form - textarea for keywords
     await searchInput.fill(schlagwoerter);
-    // schlagwortOptionen: radio buttons with value 1/2/3 (all/min/exact) - may be off-screen
-    await this.page.locator(`input[name="form:schlagwortOptionen"][value="${soId}"]`).check({ force: true });
+    await this.page.evaluate((val) => {
+      const radio = document.querySelector(`input[name="form:schlagwortOptionen"][value="${val}"]`);
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+        radio.dispatchEvent(new Event('click', { bubbles: true }));
+      }
+    }, soId);
     const submitBtn = this.page.locator('button[name="form:btnSuche"], button:has-text("Suchen")').first();
     await submitBtn.click();
     await this.page.waitForLoadState('domcontentloaded');
@@ -301,6 +306,10 @@ export class HandelsregisterClient {
    * @private
    */
   async _enrichAnnouncements(announcements, { enrichDelayMs }) {
+    if (!this.page) await this.openStartpage();
+    await this.page.goto(BASE_URL, { waitUntil: 'load', timeout: 30000 });
+    await this.acceptCookiesIfPresent();
+
     const toEnrich = announcements;
     const companyCache = new Map();
     const enriched = [];
@@ -313,8 +322,13 @@ export class HandelsregisterClient {
       if (company === undefined) {
         if (this.debug) console.error(`Enriching ${i + 1}/${toEnrich.length}: ${a.name}`);
         try {
-          const companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'exact', force: false });
+          let companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'exact', force: false });
           company = matchCompanyToAnnouncement(companies || [], a);
+          if (!company && a.name) {
+            if (this.debug) console.error(`  exact miss, retrying with keyword search`);
+            companies = await this.search({ schlagwoerter: a.name, schlagwortOptionen: 'all', force: false });
+            company = matchCompanyToAnnouncement(companies || [], a);
+          }
         } catch (err) {
           if (this.debug) console.error(`Enrich failed for ${a.name}:`, err.message);
           company = null;
@@ -328,7 +342,8 @@ export class HandelsregisterClient {
       enriched.push({ ...a, company });
     }
 
-    return [...enriched, ...announcements.slice(limit)];
+    // We enrich the full announcements array; return enriched list.
+    return enriched;
   }
 
   /**
