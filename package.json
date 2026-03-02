@@ -19,8 +19,11 @@
   "keywords": [
     "handelsregister",
     "germany",
+    "deutschland",
     "commercial-register",
-    "bundesapi"
+    "company-registry",
+    "bundesapi",
+    "handelsregister-js"
   ],
   "license": "MIT",
   "repository": {

@@ -209,10 +209,10 @@ export class HandelsregisterClient {
     await this.page.fill('input[name="bekanntMachungenForm:datum_bis_input"]', dateToStr);
 
     if (bundesland) {
-      await this.page.selectOption('select[name="bekanntMachungenForm:land_input"]', bundesland);
+      await this._selectPrimeFacesOption('bekanntMachungenForm:land_input', bundesland);
     }
     if (kategorie) {
-      await this.page.selectOption('select[name="bekanntMachungenForm:kategorie_input"]', kategorie);
+      await this._selectPrimeFacesOption('bekanntMachungenForm:kategorie_input', kategorie);
     }
 
     await this.page.click('button[name="bekanntMachungenForm:rrbSuche"]');
@@ -271,6 +271,37 @@ export class HandelsregisterClient {
 
     // We enrich the full announcements array; return enriched list.
     return enriched;
+  }
+
+  /**
+   * Select a value in a PrimeFaces-styled dropdown.
+   * The native <select> is hidden; clicking the styled wrapper opens a list overlay.
+   * @private
+   */
+  async _selectPrimeFacesOption(selectName, value) {
+    const wrapperId = selectName.replace(/:/g, '\\:');
+    const trigger = this.page.locator(`#${wrapperId}`).locator('..').locator('.ui-selectonemenu-trigger, .ui-selectonemenu-label');
+
+    if (await trigger.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await trigger.first().click();
+      await new Promise((r) => setTimeout(r, 500));
+      const item = this.page.locator(`#${wrapperId}_panel li[data-value="${value}"], #${wrapperId}_panel li`).filter({ hasText: new RegExp(`^${value}$|\\b${value}\\b`) });
+      if (await item.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+        await item.first().click();
+        await new Promise((r) => setTimeout(r, 500));
+        return;
+      }
+    }
+
+    // Fallback: set value directly via JS (works even when native select is hidden)
+    await this.page.evaluate(({ name, val }) => {
+      const select = document.querySelector(`select[name="${name}"]`);
+      if (select) {
+        select.value = val;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, { name: selectName, val: value });
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   /**
