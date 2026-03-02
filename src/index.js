@@ -3,6 +3,7 @@
 import { program } from 'commander';
 import { HandelsregisterClient } from './client.js';
 import { parseSearchResults } from './parser.js';
+import { parseAnnouncements } from './announcements-parser.js';
 
 /**
  * Print company info in human-readable format.
@@ -58,6 +59,46 @@ program
     }
   });
 
+program
+  .command('announcements')
+  .description('Search Registerbekanntmachungen (register announcements) - newly published register changes')
+  .option('--from <date>', 'Start date (dd.MM.yyyy). Default: 7 days ago')
+  .option('--to <date>', 'End date (dd.MM.yyyy). Default: today')
+  .option('--bundesland <code>', 'Federal state: BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all')
+  .option('--kategorie <id>', 'Category: 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige, 5=Sonderregister')
+  .option('-f, --force', 'Force a fresh pull and skip the cache')
+  .option('--json', 'Return response as JSON')
+  .option('-d, --debug', 'Enable debug mode')
+  .action(async (options) => {
+    const client = new HandelsregisterClient({ debug: options.debug });
+    try {
+      await client.openStartpage();
+      const announcements = await client.searchAnnouncements({
+        dateFrom: options.from,
+        dateTo: options.to,
+        bundesland: options.bundesland ?? '',
+        kategorie: options.kategorie ?? '',
+        force: options.force,
+      });
+      if (announcements != null && announcements.length > 0) {
+        if (options.json) {
+          console.log(JSON.stringify(announcements));
+        } else {
+          for (const a of announcements) {
+            console.log(`${a.date} | ${a.category}`);
+            console.log(`  ${a.court}`);
+            console.log(`  ${a.name} – ${a.location}`);
+            console.log();
+          }
+        }
+      } else {
+        console.log('No announcements found for the given criteria.');
+      }
+    } finally {
+      await client.close();
+    }
+  });
+
 program.parse();
 
-export { HandelsregisterClient, parseSearchResults };
+export { HandelsregisterClient, parseSearchResults, parseAnnouncements };

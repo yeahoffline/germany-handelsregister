@@ -22,12 +22,12 @@ npx germany-handelsregister search -s "deutsche bahn"
 ### CLI
 
 ```bash
-handelsregister search -s "deutsche bahn" -so all
-handelsregister search -s "Gasag AG" -so exact --json
+handelsregister search -s "deutsche bahn" -o all
+handelsregister search -s "Gasag AG" -o exact --json
 handelsregister search -s "Gasag AG" -f   # force fresh request, bypass cache
 ```
 
-**Options:**
+**Search options:**
 
 | Option | Description |
 |--------|-------------|
@@ -37,7 +37,32 @@ handelsregister search -s "Gasag AG" -f   # force fresh request, bypass cache
 | `--json` | Output results as JSON |
 | `-d, --debug` | Enable debug logging |
 
+### Registerbekanntmachungen (announcements)
+
+Search register announcements – newly published changes including new company registrations, transformations, deletions, etc. Covers the last 8 weeks per § 10 HGB.
+
+```bash
+handelsregister announcements                    # last 7 days, all Germany
+handelsregister announcements --from 01.02.2026 --to 15.02.2026
+handelsregister announcements --bundesland BE   # Berlin only
+handelsregister announcements --kategorie 3     # Einreichung neuer Dokumente
+handelsregister announcements --json
+```
+
+**Announcements options:**
+
+| Option | Description |
+|--------|-------------|
+| `--from <date>` | Start date (dd.MM.yyyy). Default: 7 days ago |
+| `--to <date>` | End date (dd.MM.yyyy). Default: today |
+| `--bundesland <code>` | BW, BY, BE, BR, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH. Default: all |
+| `--kategorie <id>` | 1=Löschungsankündigung, 2=Umwandlungsgesetz, 3=Einreichung neuer Dokumente, 4=Sonstige |
+| `-f, --force` | Bypass cache |
+| `--json` | Output as JSON |
+
 ### Programmatic Use
+
+**Company search:**
 
 ```javascript
 import { HandelsregisterClient, parseSearchResults } from 'germany-handelsregister';
@@ -48,16 +73,39 @@ await client.openStartpage();
 const companies = await client.search({
   schlagwoerter: 'deutsche bahn',
   schlagwortOptionen: 'all',
-  force: false,  // use cache if available
+  force: false,
 });
 
 await client.close();
 console.log(companies);
 ```
 
+**Register announcements:**
+
+```javascript
+import { HandelsregisterClient, parseAnnouncements } from 'germany-handelsregister';
+
+const client = new HandelsregisterClient();
+await client.openStartpage();
+
+const announcements = await client.searchAnnouncements({
+  dateFrom: '01.02.2026',
+  dateTo: '15.02.2026',
+  bundesland: '',  // all states
+  kategorie: '',   // all categories
+  force: false,
+});
+
+await client.close();
+console.log(announcements);
+```
+
 ## Cache
 
-Results are cached in `os.tmpdir()/handelsregister_cache/`. Use `-f` or `force: true` to bypass the cache.
+- Company search: `os.tmpdir()/handelsregister_cache/`
+- Announcements: `os.tmpdir()/handelsregister_announcements_cache/`
+
+Use `-f` or `force: true` to bypass the cache.
 
 ## Rate Limit
 
